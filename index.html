@@ -157,6 +157,7 @@ body{background:#f0e8d8;font-family:'Tiro Devanagari Sanskrit','Shobhika',serif;
     <button class="btn" onclick="exportState()" title="Export progress">Export</button>
     <button class="btn" onclick="document.getElementById('import-file').click()" title="Import progress">Import</button>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importState(event)">
+    <button class="btn" onclick="importFullChart()" title="Import Full Chart">Import Ts Chart</button>
     <button class="btn reset" onclick="resetAll()">Reset</button>
   </div>
 </div>
@@ -183,6 +184,7 @@ body{background:#f0e8d8;font-family:'Tiro Devanagari Sanskrit','Shobhika',serif;
 <div id="result-overlay"></div>
 
 <script src="tattvasankhyana-config.js"></script>
+<script src="tattvasankhyana-puzzle-full.js"></script>
 <script>
 let CATEGORIES = CONFIG.CATEGORIES;
 let LEAVES     = CONFIG.LEAVES;
@@ -644,22 +646,37 @@ function importState(evt) {
   reader.onload = function(e) {
     try {
       const data = JSON.parse(e.target.result);
-      if (!data.nodes || !Array.isArray(data.nodes)) { alert('Invalid file format.'); return; }
-      nodes = []; edges = []; connectFrom = null; canvasScale = 1;
-      const _inner = document.getElementById('canvas-inner');
-      _inner.style.transform = 'scale(1)';
-      _inner.style.transformOrigin = '0 0';
-      document.getElementById('node-layer').innerHTML = '';
-      document.getElementById('scissor-layer').innerHTML = '';
-      syncZoomSlider();
-      closeResult(); hideHint();
-      data.nodes.forEach(n => createNode(n.label, n.isCat, n.x, n.y));
-      const idMap = {}; data.nodes.forEach((n, i) => { idMap[n.id] = nodes[i].id; });
-      if (data.edges) data.edges.forEach(e => { const pId = idMap[e.parentId], cId = idMap[e.childId]; if (pId !== undefined && cId !== undefined) edges.push({ parentId: pId, childId: cId }); });
-      redrawEdges();
+      loadData(data);
     } catch (err) { alert('Error reading file: ' + err.message); }
   };
   reader.readAsText(file); evt.target.value = '';
+}
+
+async function importFullChart() {
+  if (typeof FULL_CHART_DATA !== 'undefined') {
+    loadData(FULL_CHART_DATA);
+  } else {
+    alert('Error: Full chart data not found. Please ensure tattvasankhyana-puzzle-full.js is present.');
+  }
+}
+
+function loadData(data) {
+  if (!data.nodes || !Array.isArray(data.nodes)) { alert('Invalid file format.'); return; }
+  nodes = []; edges = []; connectFrom = null; canvasScale = 1;
+  const _inner = document.getElementById('canvas-inner');
+  _inner.style.transform = 'scale(1)';
+  _inner.style.transformOrigin = '0 0';
+  document.getElementById('node-layer').innerHTML = '';
+  document.getElementById('scissor-layer').innerHTML = '';
+  syncZoomSlider();
+  closeResult(); hideHint();
+  data.nodes.forEach(n => createNode(n.label, n.isCat, n.x, n.y));
+  const idMap = {}; data.nodes.forEach((n, i) => { idMap[n.id] = nodes[i].id; });
+  if (data.edges) data.edges.forEach(e => {
+    const pId = idMap[e.parentId], cId = idMap[e.childId];
+    if (pId !== undefined && cId !== undefined) edges.push({ parentId: pId, childId: cId });
+  });
+  redrawEdges();
 }
 function loadConfig(evt) {
   const file = evt.target.files[0]; if (!file) return;
