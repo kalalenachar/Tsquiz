@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="sa">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>तत्त्वसंख्यानम् – Puzzle</title>
+<link href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Sanskrit:ital@0;1&family=Shobhika:wght@400;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#f0e8d8;font-family:'Tiro Devanagari Sanskrit','Shobhika',serif;min-height:100vh;overflow:hidden}
+.page-header{display:flex;justify-content:space-between;align-items:center;padding:.45rem 1.2rem;
+  background:linear-gradient(135deg,rgba(58,26,10,.08),rgba(184,134,11,.06));
+  border-bottom:2px solid #b8860b;flex-wrap:wrap;gap:.4rem;
+  box-shadow:0 2px 8px rgba(58,26,10,.08);position:relative;z-index:100}
+.header-title{font-family:'Shobhika',serif;font-size:clamp(.82rem,2vw,1.15rem);font-weight:700;color:#3a1a0a}
+.controls{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center}
+.btn{padding:.28rem .8rem;border-radius:7px;border:1.5px solid #b8860b;
+  background:rgba(255,248,236,.85);color:#3a1a0a;
+  font-family:'Shobhika',serif;font-size:.73rem;cursor:pointer;
+  transition:background .15s,transform .1s}
+.btn:hover{background:rgba(184,134,11,.25);transform:translateY(-1px)}
+.btn.check{background:rgba(45,122,80,.12);border-color:#2d7a50;color:#1a4a2e;font-weight:700}
+.btn.check:hover{background:rgba(45,122,80,.28)}
+.btn.align{background:rgba(90,90,184,.10);border-color:#5a5ab8;color:#2a2a7a;font-weight:700}
+.btn.align:hover{background:rgba(90,90,184,.25)}
+.btn.reset{background:rgba(139,32,32,.09);border-color:#8b2020;color:#5a1010}
+.btn.reset:hover{background:rgba(139,32,32,.22)}
+.main-layout{display:flex;height:calc(100vh - 50px)}
+.left-panel{width:185px;min-width:150px;background:rgba(255,248,236,.9);
+  border-right:2px solid rgba(184,134,11,.4);display:flex;flex-direction:column;overflow:hidden;z-index:10}
+.panel-title{font-family:'Shobhika',serif;font-size:.68rem;font-weight:700;color:#5a3a1a;
+  text-align:center;padding:.35rem .4rem;
+  background:rgba(184,134,11,.1);border-bottom:1px solid rgba(184,134,11,.3);flex-shrink:0}
+.tiles-list{flex:1;overflow-y:auto;padding:.35rem;display:flex;flex-direction:column;gap:.28rem}
+.tile{padding:.28rem .45rem;border-radius:6px;border:1.5px solid #b8860b;
+  background:rgba(255,248,236,.95);font-family:'Shobhika',serif;font-size:.75rem;
+  color:#3a1a0a;font-weight:700;cursor:grab;user-select:none;text-align:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.1);transition:opacity .15s,box-shadow .15s,transform .1s}
+.tile:hover{box-shadow:0 3px 8px rgba(0,0,0,.18);transform:translateY(-1px)}
+.tile.cat-tile{border-color:#5a8ab8;background:rgba(225,238,255,.92);color:#1a3a5a}
+.tile{position:relative}
+.tile-count{position:absolute;top:-6px;right:-6px;min-width:16px;height:16px;
+  border-radius:8px;background:#b8860b;color:#fff;font-size:.6rem;font-family:monospace;
+  font-weight:700;display:flex;align-items:center;justify-content:center;padding:0 3px;
+  line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.25);pointer-events:none;
+  opacity:0;transition:opacity .15s}
+.tile-count.active{opacity:1}
+
+/* canvas-wrap clips content; canvas-inner is what gets scaled */
+.canvas-wrap{flex:1;position:relative;overflow:auto;background:#f0e8d8;
+  background-image:repeating-linear-gradient(0deg,transparent,transparent 26px,rgba(120,80,30,.04) 27px),
+                   repeating-linear-gradient(90deg,transparent,transparent 26px,rgba(120,80,30,.03) 27px)}
+#canvas-inner{position:absolute;top:0;left:0;width:100%;height:100%;
+  transform-origin:0 0;
+  overflow:visible;
+  transition:transform .45s cubic-bezier(.4,0,.2,1)}
+#svg-layer{position:absolute;top:0;left:0;pointer-events:none;overflow:visible}
+#node-layer{position:absolute;top:0;left:0;width:100%;height:100%}
+
+.cnode{position:absolute;min-width:90px;padding:.32rem .55rem .28rem;border-radius:8px;
+  border:2px solid #b8860b;background:rgba(255,248,236,.97);
+  font-family:'Shobhika',serif;font-size:.8rem;color:#3a1a0a;font-weight:700;
+  cursor:move;user-select:none;text-align:center;
+  box-shadow:0 2px 8px rgba(0,0,0,.14);z-index:5;
+  transition:border-color .2s,background .2s,box-shadow .2s}
+.cnode.cat{border-color:#5a8ab8;background:rgba(225,238,255,.97);color:#1a3a5a}
+.cnode.animating{transition:left .45s cubic-bezier(.4,0,.2,1),top .45s cubic-bezier(.4,0,.2,1),
+  border-color .2s,background .2s !important}
+.cnode.connecting-source{box-shadow:0 0 0 3px #f0a020,0 2px 8px rgba(0,0,0,.2)!important}
+.cnode.correct{border-color:#2d7a50!important;background:rgba(195,240,208,.95)!important;
+  box-shadow:0 0 0 2px #2d7a50,0 2px 8px rgba(0,0,0,.1)!important}
+.cnode.wrong{border-color:#8b2020!important;background:rgba(255,205,205,.95)!important;
+  box-shadow:0 0 0 2px #8b2020,0 2px 8px rgba(0,0,0,.1)!important}
+.cnode.unconnected{border-color:#b07000!important;background:rgba(255,240,195,.95)!important;
+  box-shadow:0 0 0 2px #b07000,0 2px 8px rgba(0,0,0,.1)!important}
+.node-label{pointer-events:none;line-height:1.2}
+.node-btns{display:flex;justify-content:center;gap:3px;margin-top:4px}
+.node-btn{width:15px;height:15px;border-radius:50%;border:none;font-size:9px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  font-family:monospace;font-weight:bold;line-height:1;flex-shrink:0}
+.del-btn{background:#8b2020;color:#fff}
+.con-btn{background:#2d7a50;color:#fff;font-size:12px}
+
+#result-overlay{display:none;position:fixed;top:60px;right:20px;
+  min-width:280px;max-width:420px;width:auto;
+  background:rgba(255,248,236,.99);border:2px solid #b8860b;border-radius:12px;
+  z-index:500;box-shadow:0 8px 30px rgba(0,0,0,.35),0 0 0 1px rgba(184,134,11,.2);
+  font-family:'Shobhika',serif;font-size:.8rem;max-height:70vh;overflow:hidden;resize:both}
+.drag-bar{background:linear-gradient(135deg,rgba(184,134,11,.18),rgba(58,26,10,.08));
+  border-bottom:1px solid rgba(184,134,11,.35);border-radius:10px 10px 0 0;
+  padding:.3rem .7rem;cursor:move;display:flex;justify-content:space-between;align-items:center;user-select:none}
+.drag-bar .drag-dots{color:#b8860b;font-size:.7rem;letter-spacing:2px;opacity:.6}
+.result-body{padding:.7rem 1rem;overflow-y:auto;max-height:calc(70vh - 36px)}
+.r-title{font-size:.95rem;font-weight:700;margin-bottom:.45rem}
+#result-overlay ul{padding-left:1.1rem;line-height:1.85}
+#result-overlay li{margin-bottom:.15rem}
+.close-btn{background:#8b2020;color:#fff;border:none;border-radius:5px;
+  padding:.18rem .55rem;cursor:pointer;font-size:.72rem;font-family:'Shobhika',serif;flex-shrink:0}
+.close-btn:hover{background:#a52a2a}
+.ok{color:#2d7a50;font-weight:bold}.err{color:#8b2020;font-weight:bold}.warn{color:#b07000;font-weight:bold}
+.note-box{background:rgba(184,134,11,.09);border:1px solid rgba(184,134,11,.35);
+  border-radius:6px;padding:.35rem .7rem;margin-top:.5rem;font-size:.72rem;color:#5a3a1a;font-style:italic}
+#connect-hint{position:absolute;top:8px;left:50%;transform:translateX(-50%);
+  background:rgba(240,160,32,.95);color:#3a1a0a;padding:.28rem .9rem;border-radius:7px;
+  font-family:'Shobhika',serif;font-size:.76rem;font-weight:700;
+  z-index:300;box-shadow:0 2px 8px rgba(0,0,0,.2);pointer-events:none;display:none}
+
+.zoom-wrap{display:flex;align-items:center;gap:.35rem;font-size:.68rem;color:#5a3a1a}
+.zoom-wrap input[type=range]{width:80px;accent-color:#b8860b;cursor:pointer}
+.zoom-wrap span{min-width:32px;text-align:right;font-weight:700;font-size:.68rem}
+.zoom-btn{width:22px;height:22px;border-radius:5px;border:1.5px solid #b8860b;
+  background:rgba(255,248,236,.85);color:#3a1a0a;font-size:.95rem;font-weight:700;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;line-height:1;
+  padding:0;transition:background .12s,transform .1s;flex-shrink:0}
+.zoom-btn:hover{background:rgba(184,134,11,.28);transform:scale(1.12)}
+
+.left-panel{transition:width .25s ease}
+.left-panel.collapsed{width:28px!important;min-width:28px!important;overflow:hidden}
+.left-panel.collapsed .tiles-list,.left-panel.collapsed .panel-title{display:none}
+.left-panel.collapsed .panel-toggle{writing-mode:vertical-rl;height:auto;padding:.5rem .4rem;letter-spacing:1px;font-size:.65rem}
+.panel-toggle{width:100%;background:rgba(184,134,11,.15);border:none;border-bottom:2px solid rgba(184,134,11,.4);
+  color:#5a3a1a;font-size:.75rem;cursor:pointer;padding:.3rem .2rem;text-align:center;
+  font-family:'Shobhika',serif;font-weight:700;flex-shrink:0;letter-spacing:.5px}
+.panel-toggle:hover{background:rgba(184,134,11,.3)}
+.left-panel.collapsed .panel-toggle{writing-mode:vertical-rl;height:100%;width:32px;
+  border-bottom:none;border-right:2px solid rgba(184,134,11,.4);padding:.6rem 0;font-size:.65rem}
+/* ── SCISSOR BUTTON ON EDGES ── */
+.edge-scissor{position:absolute;transform:translate(-50%,-50%);
+  width:22px;height:22px;border-radius:50%;
+  background:rgba(255,248,236,.88);border:1.5px solid #b8860b;
+  font-size:13px;line-height:1;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 1px 4px rgba(0,0,0,.18);
+  opacity:0.18;transition:opacity .15s, transform .12s;
+  pointer-events:all;z-index:20;user-select:none}
+.edge-scissor:hover{opacity:1 !important;background:rgba(255,210,160,.97);
+  border-color:#8b2020;
+  transform:translate(-50%,-50%) scale(1.25)}
+#scissor-layer{position:absolute;top:0;left:0;pointer-events:none;z-index:15}
+</style>
+</head>
+<body>
+<div class="page-header">
+  <span class="header-title">तत्त्वसंख्यानम् – Puzzle</span>
+  <div class="controls">
+    <span style="font-size:.67rem;color:#7a4a1e">Drag to canvas &nbsp;|&nbsp; connect parent→child &nbsp;|&nbsp; Check</span>
+    <div class="zoom-wrap">
+      <span>🔍</span>
+      <button class="zoom-btn" onclick="stepZoom(-10)" title="Zoom out">−</button>
+      <input type="range" id="zoom-slider" min="20" max="200" value="100" step="5"
+        oninput="applyZoom(this.value)">
+      <button class="zoom-btn" onclick="stepZoom(+10)" title="Zoom in">+</button>
+      <span id="zoom-label">100%</span>
+    </div>
+    <button class="btn check" onclick="checkTree()">Check</button>
+    <button class="btn align" onclick="autoAlign()" title="Fit tree to screen">⊞ Align</button>
+    <button class="btn" onclick="exportState()" title="Export progress">Export</button>
+    <button class="btn" onclick="document.getElementById('import-file').click()" title="Import progress">Import</button>
+    <input type="file" id="import-file" accept=".json" style="display:none" onchange="importState(event)">
+    <button class="btn reset" onclick="resetAll()">Reset</button>
+  </div>
+</div>
+
+<div class="main-layout">
+  <div class="left-panel" id="left-panel">
+    <button class="panel-toggle" onclick="togglePanel()" id="panel-toggle-btn" title="Collapse panel">◀ Hide</button>
+    <div class="panel-title">📂 Categories (नाम-पदानि)</div>
+    <div class="tiles-list" id="cat-tiles"></div>
+    <div class="panel-title">🍃 Entities (तत्त्वानि)</div>
+    <div class="tiles-list" id="leaf-tiles"></div>
+  </div>
+  <div class="canvas-wrap" id="canvas-wrap">
+    <!-- canvas-inner is the scaled layer; svg + nodes live inside it -->
+    <div id="canvas-inner">
+      <svg id="svg-layer"></svg>
+      <div id="scissor-layer"></div>
+      <div id="node-layer"></div>
+    </div>
+    <div id="connect-hint"></div>
+  </div>
+</div>
+
+<div id="result-overlay"></div>
+
+<script src="tattvasankhyana-config.js"></script>
+<script>
+let CATEGORIES = CONFIG.CATEGORIES;
+let LEAVES     = CONFIG.LEAVES;
+let RULE_SETS  = CONFIG.RULE_SETS;
+function resolveSet(key) { return new Set(RULE_SETS[key]); }
+
+let nodes = [], edges = [], nid = 0, connectFrom = null;
+let canvasScale = 1; // current scale applied to #canvas-inner
+
+// ── INIT ─────────────────────────────────────────────────────────────────────
+function init() {
+  nodes = []; edges = []; nid = 0; connectFrom = null; canvasScale = 1;
+  document.getElementById('node-layer').innerHTML = '';
+  document.getElementById('scissor-layer').innerHTML = '';
+  const inner = document.getElementById('canvas-inner');
+  inner.style.transform = 'scale(1)';
+  inner.style.transformOrigin = '0 0';
+  syncZoomSlider();
+  redrawEdges(); closeResult(); hideHint();
+
+  function makeTile(lbl, isCat, cid) {
+    const el = document.createElement('div');
+    el.className = 'tile' + (isCat ? ' cat-tile' : '');
+    el.dataset.label = lbl; el.draggable = true;
+    el.innerHTML = `${lbl}<span class="tile-count" id="tc-${CSS.escape(lbl)}">0</span>`;
+    el.addEventListener('dragstart', e => { dragData = { label: lbl, isCat }; e.dataTransfer.setData('text/plain', lbl); });
+    document.getElementById(cid).appendChild(el);
+  }
+  document.getElementById('cat-tiles').innerHTML  = '';
+  document.getElementById('leaf-tiles').innerHTML = '';
+  CATEGORIES.forEach(l => makeTile(l, true,  'cat-tiles'));
+  LEAVES.forEach(l     => makeTile(l, false, 'leaf-tiles'));
+
+  const cw = document.getElementById('canvas-wrap');
+  // Remove any previously registered listeners before re-adding
+  cw.removeEventListener('dragover', _onDragOver);
+  cw.removeEventListener('drop',     onCanvasDrop);
+  cw.addEventListener('dragover', _onDragOver);
+  cw.addEventListener('drop',     onCanvasDrop);
+}
+function _onDragOver(e) { e.preventDefault(); }
+
+function updateTileCounts() {
+  const counts = {};
+  nodes.forEach(n => { counts[n.label] = (counts[n.label] || 0) + 1; });
+  [...CATEGORIES, ...LEAVES].forEach(lbl => {
+    const badge = document.getElementById('tc-' + CSS.escape(lbl));
+    if (!badge) return;
+    const c = counts[lbl] || 0;
+    badge.textContent = c;
+    badge.classList.toggle('active', c > 0);
+  });
+}
+
+let dragData = null;
+
+function onCanvasDrop(e) {
+  e.preventDefault();
+  if (!dragData) return;
+  const cw = document.getElementById('canvas-wrap');
+  const r  = cw.getBoundingClientRect();
+  // Convert screen drop position → unscaled canvas coordinates:
+  //   1. Subtract canvas origin to get position within visible viewport
+  //   2. Add scroll offset to account for how far user has scrolled
+  //   3. Divide by canvasScale to convert scaled px → unscaled node-layer px
+  //   4. Subtract half node size (in unscaled px) to center node under cursor
+  const NODE_HALF_W = 45, NODE_HALF_H = 22;
+  const x = (e.clientX - r.left  + cw.scrollLeft) / canvasScale - NODE_HALF_W;
+  const y = (e.clientY - r.top   + cw.scrollTop)  / canvasScale - NODE_HALF_H;
+  createNode(dragData.label, dragData.isCat, x, y);
+  dragData = null;
+}
+
+// ── CREATE NODE ───────────────────────────────────────────────────────────────
+function createNode(label, isCat, x, y) {
+  const id = nid++;
+  const el = document.createElement('div');
+  el.className = 'cnode' + (isCat ? ' cat' : '');
+  el.id = 'n' + id;
+  el.style.cssText = `left:${x}px;top:${y}px`;
+  el.innerHTML = `<div class="node-label">${label}</div>
+    <div class="node-btns">
+      <button class="node-btn con-btn" title="Set as parent then click child" onclick="startConnect(${id},event)">⇣</button>
+      <button class="node-btn del-btn" title="Delete" onclick="deleteNode(${id})">✕</button>
+    </div>`;
+  makeDraggable(el, id);
+  el.addEventListener('click', e => {
+    if (connectFrom !== null && connectFrom !== id) { addEdge(connectFrom, id); stopConnect(); }
+    e.stopPropagation();
+  });
+  document.getElementById('node-layer').appendChild(el);
+  nodes.push({ id, label, isCat, x, y, el });
+  updateTileCounts();
+  return id;
+}
+
+// ── DRAG NODES ────────────────────────────────────────────────────────────────
+function getDescendantIds(rootId) {
+  const result = [];
+  const stack = [rootId];
+  while (stack.length) {
+    const cur = stack.pop();
+    result.push(cur);
+    edges.forEach(e => { if (e.parentId === cur) stack.push(e.childId); });
+  }
+  return result;
+}
+
+function makeDraggable(el, id) {
+  let sx, sy, active = false;
+  let dragGroup = [];
+
+  el.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('node-btn')) return;
+    active = true;
+    sx = e.clientX; sy = e.clientY;
+    const ids = getDescendantIds(id);
+    dragGroup = ids.map(did => {
+      const n = nodes.find(x => x.id === did);
+      return n ? { node: n, ox: n.x, oy: n.y } : null;
+    }).filter(Boolean);
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!active) return;
+    const dx = (e.clientX - sx) / canvasScale;
+    const dy = (e.clientY - sy) / canvasScale;
+    dragGroup.forEach(({ node, ox, oy }) => {
+      node.x = ox + dx;
+      node.y = oy + dy;
+      node.el.style.left = node.x + 'px';
+      node.el.style.top  = node.y + 'px';
+    });
+    redrawEdges();
+  });
+  document.addEventListener('mouseup', () => { active = false; dragGroup = []; });
+}
+
+// ── CONNECT ───────────────────────────────────────────────────────────────────
+function startConnect(id, e) {
+  e.stopPropagation();
+  if (connectFrom === id) { stopConnect(); return; }
+  connectFrom = id;
+  nodes.forEach(n => n.el.classList.remove('connecting-source'));
+  nodes.find(n => n.id === id)?.el.classList.add('connecting-source');
+  showHint(`Click the CHILD node — Esc to cancel`);
+}
+function stopConnect() { connectFrom = null; nodes.forEach(n => n.el.classList.remove('connecting-source')); hideHint(); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') stopConnect(); });
+
+function addEdge(parentId, childId) {
+  if (edges.find(e => e.parentId === parentId && e.childId === childId)) return;
+  edges = edges.filter(e => e.childId !== childId);
+  if (isAncestor(childId, parentId)) { alert('This connection would create a cycle!'); return; }
+  edges.push({ parentId, childId }); redrawEdges(); closeResult();
+}
+function isAncestor(possibleAnc, nodeId) {
+  let cur = nodeId, s = 0;
+  while (s++ < 60) { const e = edges.find(x => x.childId === cur); if (!e) return false; if (e.parentId === possibleAnc) return true; cur = e.parentId; }
+  return false;
+}
+function deleteNode(id) {
+  edges = edges.filter(e => e.parentId !== id && e.childId !== id);
+  nodes.find(n => n.id === id)?.el.remove();
+  nodes = nodes.filter(n => n.id !== id);
+  if (connectFrom === id) stopConnect();
+  redrawEdges(); closeResult(); updateTileCounts();
+}
+
+function cutEdge(parentId, childId) {
+  edges = edges.filter(e => !(e.parentId === parentId && e.childId === childId));
+  redrawEdges(); closeResult();
+}
+
+// ── DRAW EDGES ────────────────────────────────────────────────────────────────
+function svgEl(tag, attrs) {
+  const el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  Object.entries(attrs).forEach(([k, v]) => el.setAttribute(k, v)); return el;
+}
+function redrawEdges() {
+  const svg   = document.getElementById('svg-layer');
+  const inner = document.getElementById('canvas-inner');
+  const cw    = document.getElementById('canvas-wrap');
+
+  // Compute bounding box of all nodes in unscaled coordinates
+  const MARGIN = 120;
+  let maxX = (cw.offsetWidth  / canvasScale) + MARGIN;
+  let maxY = (cw.offsetHeight / canvasScale) + MARGIN;
+  nodes.forEach(n => {
+    const r = n.x + (n.el.offsetWidth  || 90) + MARGIN;
+    const b = n.y + (n.el.offsetHeight || 44) + MARGIN;
+    if (r > maxX) maxX = r;
+    if (b > maxY) maxY = b;
+  });
+
+  // Expand canvas-inner to fit all nodes so scroll works correctly
+  inner.style.width  = maxX + 'px';
+  inner.style.height = maxY + 'px';
+
+  // SVG matches the same space — overflow:visible handles any remainder
+  svg.setAttribute('width',  maxX);
+  svg.setAttribute('height', maxY);
+  svg.style.width  = maxX + 'px';
+  svg.style.height = maxY + 'px';
+  svg.innerHTML = '';
+
+  const defs = svgEl('defs', {});
+  const mk = svgEl('marker', { id:'arr', markerWidth:7, markerHeight:7, refX:5, refY:3, orient:'auto' });
+  mk.appendChild(svgEl('polygon', { points:'0 0,7 3,0 6', fill:'#8b5e3c', opacity:.75 }));
+  defs.appendChild(mk); svg.appendChild(defs);
+
+  // Also size and clear scissor layer
+  const sl = document.getElementById('scissor-layer');
+  sl.style.width  = maxX + 'px';
+  sl.style.height = maxY + 'px';
+  sl.innerHTML = '';
+
+  edges.forEach(({ parentId, childId }) => {
+    const p = nodes.find(n => n.id === parentId), c = nodes.find(n => n.id === childId);
+    if (!p || !c) return;
+    const px = p.x + p.el.offsetWidth  / 2, py = p.y + p.el.offsetHeight;
+    const cx = c.x + c.el.offsetWidth  / 2, cy = c.y;
+    const my = (py + cy) / 2;
+    svg.appendChild(svgEl('path', {
+      d:`M${px},${py} C${px},${my+18} ${cx},${my-18} ${cx},${cy}`,
+      stroke:'#8b5e3c', 'stroke-width':1.8, fill:'none', opacity:.78, 'marker-end':'url(#arr)'
+    }));
+
+    // Scissor button at midpoint of the bezier curve (t=0.5)
+    // Cubic bezier midpoint formula
+    const t = 0.5;
+    const cp1x = px, cp1y = my + 18;
+    const cp2x = cx, cp2y = my - 18;
+    const bx = (1-t)**3*px + 3*(1-t)**2*t*cp1x + 3*(1-t)*t**2*cp2x + t**3*cx;
+    const by = (1-t)**3*py + 3*(1-t)**2*t*cp1y + 3*(1-t)*t**2*cp2y + t**3*cy;
+
+    const btn = document.createElement('button');
+    btn.className = 'edge-scissor';
+    btn.title = 'Cut connection';
+    btn.textContent = '✂';
+    btn.style.left = bx + 'px';
+    btn.style.top  = by + 'px';
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      cutEdge(parentId, childId);
+    });
+    sl.appendChild(btn);
+  });
+}
+
+// ── ANCESTOR UTILS ────────────────────────────────────────────────────────────
+function getAncestorLabels(nodeId) {
+  const labels = []; let cur = nodeId, s = 0;
+  while (s++ < 80) {
+    const e = edges.find(x => x.childId === cur); if (!e) break;
+    const p = nodes.find(n => n.id === e.parentId); if (!p) break;
+    labels.push(p.label); cur = e.parentId;
+  }
+  return labels;
+}
+function ancestorSet(nodeId) { return new Set(getAncestorLabels(nodeId)); }
+
+// ── AUTO ALIGN ───────────────────────────────────────────────────────────────
+function autoAlign() {
+  if (nodes.length === 0) return;
+
+  const H_GAP = 8, PAD = 12;
+
+  const childrenOf = {};
+  nodes.forEach(n => { childrenOf[n.id] = []; });
+  edges.forEach(e => { if (childrenOf[e.parentId] !== undefined) childrenOf[e.parentId].push(e.childId); });
+
+  const childIds = new Set(edges.map(e => e.childId));
+  const roots    = nodes.filter(n => !childIds.has(n.id));
+  if (!roots.length) return;
+
+  // Real rendered sizes
+  const nW = {}, nH = {};
+  nodes.forEach(n => { nW[n.id] = n.el.offsetWidth || 90; nH[n.id] = n.el.offsetHeight || 44; });
+  const maxNodeH = Math.max(...nodes.map(n => nH[n.id]));
+
+  // Subtree slot widths using real widths
+  const subW = {};
+  function calcW(id) {
+    if (subW[id] !== undefined) return subW[id];
+    const ch = childrenOf[id] || [];
+    if (!ch.length) { subW[id] = nW[id]; return nW[id]; }
+    const w = ch.reduce((s, c) => s + calcW(c), 0) + H_GAP * (ch.length - 1);
+    subW[id] = Math.max(nW[id], w); return subW[id];
+  }
+  roots.forEach(r => calcW(r.id));
+
+  // Depth per node
+  const depthOf = {};
+  function setDepth(id, d) { depthOf[id] = d; (childrenOf[id]||[]).forEach(c=>setDepth(c,d+1)); }
+  roots.forEach(r => setDepth(r.id, 0));
+  const maxDepth = Math.max(...nodes.map(n => depthOf[n.id] || 0));
+
+  // Horizontal center-X per node (no V_GAP dependency)
+  const colX = {};
+  function assignX(id, cx) {
+    colX[id] = cx;
+    const ch = childrenOf[id] || [];
+    if (!ch.length) return;
+    const tw = ch.reduce((s,c)=>s+subW[c],0) + H_GAP*(ch.length-1);
+    let lx = cx - tw/2;
+    ch.forEach(c => { assignX(c, lx+subW[c]/2); lx += subW[c]+H_GAP; });
+  }
+  let rx = PAD;
+  roots.forEach(r => { assignX(r.id, rx+subW[r.id]/2); rx += subW[r.id]+H_GAP; });
+
+  const rawW = Math.max(...nodes.map(n => colX[n.id]+nW[n.id]/2)) + PAD;
+
+  const cw     = document.getElementById('canvas-wrap');
+  const inner  = document.getElementById('canvas-inner');
+  const availW = cw.offsetWidth;
+  const availH = cw.offsetHeight;
+  const canvH  = cw.offsetHeight;
+
+  // Compute V_GAP so rawH/rawW == canvH/availW (same aspect ratio as canvas)
+  // → scale = availW/rawW = canvH/rawH (fills both dimensions)
+  const V_GAP = maxDepth > 0
+    ? Math.max(6, (rawW * canvH / availW - 2*PAD - (maxDepth+1)*maxNodeH) / maxDepth)
+    : 50;
+
+  const rawH = 2*PAD + (maxDepth+1)*maxNodeH + maxDepth*V_GAP;
+  const scale = Math.min(availW/rawW, canvH/rawH);
+
+  // Apply scale — redrawEdges will handle canvas-inner sizing
+  inner.style.transformOrigin = '0 0';
+  inner.style.transform = `scale(${scale})`;
+  canvasScale = scale;
+
+  // Place nodes
+  nodes.forEach(n => {
+    const d = depthOf[n.id] || 0;
+    n.x = Math.round(colX[n.id] - nW[n.id]/2);
+    n.y = Math.round(PAD + d*(maxNodeH + V_GAP));
+    n.el.classList.add('animating');
+    n.el.style.left = n.x + 'px';
+    n.el.style.top  = n.y + 'px';
+  });
+
+  syncZoomSlider();
+  let t = 0;
+  const ticker = setInterval(() => {
+    redrawEdges();
+    if (++t >= 26) {
+      clearInterval(ticker);
+      nodes.forEach(n => n.el.classList.remove('animating'));
+      redrawEdges();
+    }
+  }, 18);
+}
+
+// ── CHECK LOGIC ───────────────────────────────────────────────────────────────
+function checkTree() {
+  if (nodes.length === 0) { showResult([], [], 0, 'No nodes on canvas yet.'); return; }
+  closeResult();
+  nodes.forEach(n => n.el.classList.remove('correct', 'wrong', 'unconnected'));
+
+  const errors = [], unconnected = [], wrongIds = new Set(), unconnIds = new Set();
+  const RULES = CONFIG.RULES;
+
+  nodes.forEach(node => {
+    const lbl = node.label, ancs = ancestorSet(node.id), ancArr = getAncestorLabels(node.id);
+    const isCat = CATEGORIES.includes(lbl);
+    const nodeErrors = [];
+
+    if (!RULES.ROOT_NODES.includes(lbl) && ancArr.length === 0) {
+      unconnected.push({ label: lbl, msg: `${lbl} is not connected` });
+      unconnIds.add(node.id); return;
+    }
+    if (RULES.ROOT_NODES.includes(lbl) && ancs.size > 0) nodeErrors.push(`${lbl} cannot be under ${ancArr[0]}`);
+
+    for (const [ancestor, spec] of Object.entries(RULES.ALLOWED_ONLY_UNDER || {})) {
+      if (!ancs.has(ancestor) || lbl === ancestor) continue;
+      if (spec.leaves_only && isCat) continue;
+      if (!resolveSet(spec.set).has(lbl)) nodeErrors.push(`${lbl} cannot be under ${ancestor}`);
+    }
+    for (const group of RULES.MUTUAL_EXCLUSION_GROUPS) {
+      if (!group.includes(lbl)) continue;
+      const bad = [...ancs].find(a => group.includes(a));
+      if (bad) nodeErrors.push(`${lbl} cannot be under ${bad}`);
+    }
+    for (const rule of RULES.FORBIDDEN_ANCESTOR_RULES) {
+      let matches = false;
+      if (rule.node_labels && rule.node_labels.includes(lbl)) matches = true;
+      if (!matches && rule.node_sets) for (const sk of rule.node_sets) { if (resolveSet(sk).has(lbl)) { matches = true; break; } }
+      if (!matches) continue;
+      if (rule.node_exclude_labels && rule.node_exclude_labels.includes(lbl)) continue;
+      let bad = null;
+      if (rule.forbidden_ancestor_labels) bad = [...ancs].find(a => rule.forbidden_ancestor_labels.includes(a));
+      if (!bad && rule.forbidden_ancestor_sets) for (const sk of rule.forbidden_ancestor_sets) { bad = [...ancs].find(a => resolveSet(sk).has(a)); if (bad) break; }
+      if (bad) nodeErrors.push(`${lbl} cannot be under ${bad}`);
+    }
+    if (nodeErrors.length > 0) { nodeErrors.forEach(m => errors.push({ label: lbl, msg: m })); wrongIds.add(node.id); }
+  });
+
+  const okCount = nodes.filter(n => !wrongIds.has(n.id) && !unconnIds.has(n.id)).length;
+  nodes.forEach(n => {
+    n.el.classList.remove('correct','wrong','unconnected');
+    if (wrongIds.has(n.id)) n.el.classList.add('wrong');
+    else if (unconnIds.has(n.id)) n.el.classList.add('unconnected');
+    else n.el.classList.add('correct');
+  });
+  showResult(errors, unconnected, okCount, '');
+}
+
+// ── RESULT DISPLAY ────────────────────────────────────────────────────────────
+function showResult(errors, unconnected, okCount, extraMsg) {
+  const overlay = document.getElementById('result-overlay');
+  overlay.style.display = 'block';
+  overlay.style.top = '60px'; overlay.style.right = '20px'; overlay.style.left = ''; overlay.style.bottom = '';
+  const dragBar = `<div class="drag-bar" id="result-drag-bar"><span class="drag-dots">• • •</span><button class="close-btn" onclick="closeResult()">Close</button></div>`;
+  if (extraMsg) { overlay.style.border = '2px solid #b8860b'; overlay.innerHTML = dragBar + `<div class="result-body"><div class="r-title">${extraMsg}</div></div>`; initDragBar(); return; }
+  const total = errors.length + unconnected.length;
+  if (total === 0) {
+    overlay.style.border = '2px solid #2d7a50';
+    overlay.innerHTML = dragBar + `<div class="result-body"><div class="r-title" style="color:#1a4a2e">✓ All correct!</div><p style="color:#1a4a2e">All ${okCount} nodes are correctly placed.</p><div class="note-box">Any Dvaita-consistent hierarchy is valid — not just the canonical one.</div></div>`;
+  } else {
+    overlay.style.border = '2px solid #8b2020';
+    let body = `<div class="r-title" style="color:#5a1010">⚠ ${total} Problem${total > 1 ? 's' : ''}</div><ul>`;
+    unconnected.forEach(({ msg }) => { body += `<li><span class="warn">○</span> ${msg}</li>`; });
+    errors.forEach(({ msg }) => { body += `<li><span class="err">✗</span> ${msg}</li>`; });
+    body += '</ul>';
+    if (okCount > 0) body += `<p style="margin-top:.45rem"><span class="ok">✓</span> ${okCount} node${okCount > 1 ? 's' : ''} correct (green).</p>`;
+    overlay.innerHTML = dragBar + `<div class="result-body">${body}</div>`;
+  }
+  initDragBar();
+}
+function initDragBar() {
+  const bar = document.getElementById('result-drag-bar'), overlay = document.getElementById('result-overlay');
+  if (!bar || !overlay) return;
+  let dragging = false, ox, oy;
+  bar.onmousedown = function(e) { if (e.target.classList.contains('close-btn')) return; dragging = true; const r = overlay.getBoundingClientRect(); ox = e.clientX - r.left; oy = e.clientY - r.top; e.preventDefault(); };
+  document.addEventListener('mousemove', function(e) { if (!dragging) return; overlay.style.left = (e.clientX - ox) + 'px'; overlay.style.top = (e.clientY - oy) + 'px'; overlay.style.right = 'auto'; });
+  document.addEventListener('mouseup', function() { dragging = false; });
+}
+function closeResult() { document.getElementById('result-overlay').style.display = 'none'; nodes.forEach(n => n.el.classList.remove('correct','wrong','unconnected')); }
+function showHint(msg) { const h = document.getElementById('connect-hint'); h.textContent = msg; h.style.display = 'block'; }
+function hideHint()    { document.getElementById('connect-hint').style.display = 'none'; }
+window.addEventListener('resize', redrawEdges);
+function resetAll() {
+  canvasScale = 1;
+  init();
+}
+
+// ── EXPORT / IMPORT ───────────────────────────────────────────────────────────
+function exportState() {
+  const data = { nodes: nodes.map(n => ({ id: n.id, label: n.label, isCat: n.isCat, x: n.x, y: n.y })), edges: edges.map(e => ({ parentId: e.parentId, childId: e.childId })), nid };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'tattvasankhyana-puzzle-' + new Date().toISOString().slice(0, 10) + '.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+function importState(evt) {
+  const file = evt.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.nodes || !Array.isArray(data.nodes)) { alert('Invalid file format.'); return; }
+      nodes = []; edges = []; connectFrom = null; canvasScale = 1;
+      const _inner = document.getElementById('canvas-inner');
+      _inner.style.transform = 'scale(1)';
+      _inner.style.transformOrigin = '0 0';
+      document.getElementById('node-layer').innerHTML = '';
+      document.getElementById('scissor-layer').innerHTML = '';
+      syncZoomSlider();
+      closeResult(); hideHint();
+      data.nodes.forEach(n => createNode(n.label, n.isCat, n.x, n.y));
+      const idMap = {}; data.nodes.forEach((n, i) => { idMap[n.id] = nodes[i].id; });
+      if (data.edges) data.edges.forEach(e => { const pId = idMap[e.parentId], cId = idMap[e.childId]; if (pId !== undefined && cId !== undefined) edges.push({ parentId: pId, childId: cId }); });
+      redrawEdges();
+    } catch (err) { alert('Error reading file: ' + err.message); }
+  };
+  reader.readAsText(file); evt.target.value = '';
+}
+function loadConfig(evt) {
+  const file = evt.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (!data.CATEGORIES || !data.LEAVES || !data.RULE_SETS) { alert('Invalid config file.'); return; }
+      CATEGORIES = data.CATEGORIES; LEAVES = data.LEAVES; RULE_SETS = data.RULE_SETS; init();
+      alert(`Config loaded! Categories: ${CATEGORIES.length}, Entities: ${LEAVES.length}`);
+    } catch (err) { alert('Error reading config: ' + err.message); }
+  };
+  reader.readAsText(file); evt.target.value = '';
+}
+
+// ── PANEL TOGGLE ──────────────────────────────────────────────────────────────
+function togglePanel() {
+  const panel = document.getElementById('left-panel');
+  const btn   = document.getElementById('panel-toggle-btn');
+  const collapsed = panel.classList.toggle('collapsed');
+  btn.textContent = collapsed ? '▶ Show' : '◀ Hide';
+  btn.title = collapsed ? 'Expand panel' : 'Collapse panel';
+  // Redraw edges after layout shift
+  setTimeout(redrawEdges, 280);
+}
+window.addEventListener('DOMContentLoaded', () => init());
+// ── ZOOM SLIDER ───────────────────────────────────────────────────────────────
+function applyZoom(val) {
+  const pct = parseInt(val);
+  document.getElementById('zoom-label').textContent = pct + '%';
+  canvasScale = pct / 100;
+  const inner = document.getElementById('canvas-inner');
+  inner.style.transformOrigin = '0 0';
+  inner.style.transform = `scale(${canvasScale})`;
+  redrawEdges(); // redrawEdges handles canvas-inner sizing
+}
+
+function stepZoom(delta) {
+  const slider = document.getElementById('zoom-slider');
+  const newVal = Math.min(200, Math.max(20, parseInt(slider.value) + delta));
+  slider.value = newVal;
+  applyZoom(newVal);
+}
+
+// Sync slider with current canvasScale
+function syncZoomSlider() {
+  const slider = document.getElementById('zoom-slider');
+  const label  = document.getElementById('zoom-label');
+  if (!slider) return;
+  const pct = Math.round(canvasScale * 100);
+  slider.value = Math.min(200, Math.max(20, pct));
+  label.textContent = pct + '%';
+}
+
+// ── EDGE-PAN (auto-scroll canvas by moving cursor near edges) ─────────────────
+(function() {
+  const ZONE  = 60;   // px from edge that triggers pan
+  const SPEED = 12;   // max px per frame
+  let panRAF = null, mouseX = 0, mouseY = 0, insideCanvas = false;
+
+  function panStep() {
+    const cw = document.getElementById('canvas-wrap');
+    const r  = cw.getBoundingClientRect();
+    const lx = mouseX - r.left;   // local X inside canvas
+    const ly = mouseY - r.top;    // local Y inside canvas
+
+    let dx = 0, dy = 0;
+    if (lx < ZONE)           dx = -SPEED * (1 - lx / ZONE);
+    else if (lx > r.width - ZONE)  dx =  SPEED * (1 - (r.width - lx) / ZONE);
+    if (ly < ZONE)           dy = -SPEED * (1 - ly / ZONE);
+    else if (ly > r.height - ZONE) dy =  SPEED * (1 - (r.height - ly) / ZONE);
+
+    if ((dx !== 0 || dy !== 0) && insideCanvas) {
+      cw.scrollLeft += dx;
+      cw.scrollTop  += dy;
+      redrawEdges();
+      panRAF = requestAnimationFrame(panStep);
+    } else {
+      panRAF = null;
+    }
+  }
+
+  document.addEventListener('mousemove', e => {
+    mouseX = e.clientX; mouseY = e.clientY;
+    const cw = document.getElementById('canvas-wrap');
+    if (!cw) return;
+    const r = cw.getBoundingClientRect();
+    insideCanvas = e.clientX >= r.left && e.clientX <= r.right &&
+                   e.clientY >= r.top  && e.clientY <= r.bottom;
+    if (insideCanvas && !panRAF) panRAF = requestAnimationFrame(panStep);
+  });
+
+  document.addEventListener('mouseleave', () => { insideCanvas = false; });
+})();
+
+</script>
+</body>
+</html>
