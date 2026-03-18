@@ -5,6 +5,8 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>तत्त्वसंख्यानम् – Puzzle</title>
 <link href="https://fonts.googleapis.com/css2?family=Tiro+Devanagari+Sanskrit:ital@0;1&family=Shobhika:wght@400;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:#f0e8d8;font-family:'Tiro Devanagari Sanskrit','Shobhika',serif;min-height:100vh;overflow:hidden}
@@ -154,7 +156,9 @@ body{background:#f0e8d8;font-family:'Tiro Devanagari Sanskrit','Shobhika',serif;
     </div>
     <button class="btn check" onclick="checkTree()">Check</button>
     <button class="btn align" onclick="autoAlign()" title="Fit tree to screen">⊞ Align</button>
-    <button class="btn" onclick="exportState()" title="Export progress">Export</button>
+    <button class="btn" onclick="exportState()" title="Export progress">Export JSON</button>
+    <button class="btn" onclick="exportAsImage()" title="Export as high-quality image">Export Image</button>
+    <button class="btn" onclick="exportAsPDF()" title="Export as PDF">Export PDF</button>
     <button class="btn" onclick="document.getElementById('import-file').click()" title="Import progress">Import</button>
     <input type="file" id="import-file" accept=".json" style="display:none" onchange="importState(event)">
     <button class="btn" onclick="importFullChart()" title="Import Full Chart">Import Ts Chart</button>
@@ -639,6 +643,101 @@ function exportState() {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'tattvasankhyana-puzzle-' + new Date().toISOString().slice(0, 10) + '.json'; a.click(); URL.revokeObjectURL(a.href);
+}
+
+async function exportAsImage() {
+  try {
+    const inner = document.getElementById('canvas-inner');
+    const originalTransform = inner.style.transform;
+    const originalTransformOrigin = inner.style.transformOrigin;
+    
+    // Temporarily remove scale for full resolution capture
+    inner.style.transform = 'scale(1)';
+    inner.style.transformOrigin = '0 0';
+    
+    const canvas = await html2canvas(inner, {
+      scale: 3, // 3x scale for high quality
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#f0e8d8',
+      logging: false,
+      windowWidth: inner.offsetWidth,
+      windowHeight: inner.offsetHeight
+    });
+    
+    // Restore original transform
+    inner.style.transform = originalTransform;
+    inner.style.transformOrigin = originalTransformOrigin;
+    
+    const link = document.createElement('a');
+    link.href = canvas.toDataURL('image/png');
+    link.download = 'tattvasankhyana-puzzle-' + new Date().toISOString().slice(0, 10) + '.png';
+    link.click();
+  } catch (err) {
+    alert('Error exporting image: ' + err.message);
+    const inner = document.getElementById('canvas-inner');
+    inner.style.transform = originalTransform;
+    inner.style.transformOrigin = originalTransformOrigin;
+  }
+}
+
+async function exportAsPDF() {
+  try {
+    const inner = document.getElementById('canvas-inner');
+    const originalTransform = inner.style.transform;
+    const originalTransformOrigin = inner.style.transformOrigin;
+    
+    // Temporarily remove scale for full resolution capture
+    inner.style.transform = 'scale(1)';
+    inner.style.transformOrigin = '0 0';
+    
+    const canvas = await html2canvas(inner, {
+      scale: 3, // 3x scale for high quality
+      useCORS: true,
+      allowTaint: true,
+      backgroundColor: '#f0e8d8',
+      logging: false,
+      windowWidth: inner.offsetWidth,
+      windowHeight: inner.offsetHeight
+    });
+    
+    // Restore original transform
+    inner.style.transform = originalTransform;
+    inner.style.transformOrigin = originalTransformOrigin;
+    
+    const imgData = canvas.toDataURL('image/png');
+    const canvasWidth = canvas.width;
+    const canvasHeight = canvas.height;
+    const aspectRatio = canvasWidth / canvasHeight;
+    
+    // Create PDF with appropriate dimensions
+    const { jsPDF } = window.jspdf;
+    let pdfWidth, pdfHeight;
+    
+    if (aspectRatio > 1) {
+      // Landscape
+      pdfWidth = 297; // A4 landscape width in mm
+      pdfHeight = pdfWidth / aspectRatio;
+    } else {
+      // Portrait
+      pdfHeight = 297; // A4 portrait height in mm
+      pdfWidth = pdfHeight * aspectRatio;
+    }
+    
+    const pdf = new jsPDF({
+      orientation: aspectRatio > 1 ? 'landscape' : 'portrait',
+      unit: 'mm',
+      format: [pdfWidth, pdfHeight]
+    });
+    
+    pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+    pdf.save('tattvasankhyana-puzzle-' + new Date().toISOString().slice(0, 10) + '.pdf');
+  } catch (err) {
+    alert('Error exporting PDF: ' + err.message);
+    const inner = document.getElementById('canvas-inner');
+    inner.style.transform = originalTransform;
+    inner.style.transformOrigin = originalTransformOrigin;
+  }
 }
 function importState(evt) {
   const file = evt.target.files[0]; if (!file) return;
