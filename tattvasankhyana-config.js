@@ -52,6 +52,8 @@ const CONFIG = {
 "MUKTI_AYOGYA_LEAF": ["दैत्याः","राक्षसाः","पिशाचाः","मर्त्याधमाः"],
 // Removed "पुराणम्" — it is नित्यानित्य in this system, not strictly नित्य
 "NITYA_ACETANA_LEAF": ["वेदाः"],
+// पुराणम्, कालः, प्रकृतिः are strictly नित्यानित्य — neither नित्य nor अनित्य
+"NITYANITYA_LEAF": ["कालः","प्रकृतिः","पुराणम्"],
 "ANITYA_LEAF": [
 "महत्तत्त्वम्","अहंकारः","बुद्धिः","मनः",
 "दशेन्द्रियाणि","पञ्चतन्मात्राः","पञ्चभूतानि","ब्रह्माण्डम्"
@@ -163,6 +165,11 @@ const CONFIG = {
 "desc": "वेदाः are नित्य — not अनित्य, not नित्यानित्य, not संसृष्ट",
 "node_sets": ["NITYA_ACETANA_LEAF"],
 "forbidden_ancestor_labels": ["अनित्यम्","नित्यानित्यम्","संसृष्टम्"]
+},
+{
+"desc": "पुराणम्/कालः/प्रकृतिः are नित्यानित्य — not नित्य, not अनित्य",
+"node_sets": ["NITYANITYA_LEAF"],
+"forbidden_ancestor_labels": ["नित्यम्","अनित्यम्"]
 },
 // Removed "असंसृष्टम्" — अनित्य entities ARE असंसृष्ट, so they belong under it
 {
