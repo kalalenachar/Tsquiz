@@ -21,6 +21,7 @@ body{background:#f0e8d8;font-family:'Tiro Devanagari Sanskrit','Shobhika',serif;
   font-family:'Shobhika',serif;font-size:.73rem;cursor:pointer;
   transition:background .15s,transform .1s}
 .btn:hover{background:rgba(184,134,11,.25);transform:translateY(-1px)}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important}
 .btn.check{background:rgba(45,122,80,.12);border-color:#2d7a50;color:#1a4a2e;font-weight:700}
 .btn.check:hover{background:rgba(45,122,80,.28)}
 .btn.align{background:rgba(90,90,184,.10);border-color:#5a5ab8;color:#2a2a7a;font-weight:700}
@@ -155,6 +156,8 @@ body{background:#f0e8d8;font-family:'Tiro Devanagari Sanskrit','Shobhika',serif;
       <span id="zoom-label">100%</span>
     </div>
     <button class="btn check" onclick="checkTree()">Check</button>
+    <button class="btn" id="undo-btn" onclick="undo()" title="Undo (Ctrl+Z)" disabled style="font-size:.8rem">↩ Undo</button>
+    <button class="btn" id="redo-btn" onclick="redo()" title="Redo (Ctrl+Y)" disabled style="font-size:.8rem">↪ Redo</button>
     <button class="btn align" onclick="autoAlign()" title="Fit tree to screen">⊞ Align</button>
     <button class="btn" onclick="exportState()" title="Export progress">Export JSON</button>
     <button class="btn" onclick="exportAsImage()" title="Export as high-quality image">Export Image</button>
@@ -198,9 +201,78 @@ function resolveSet(key) { return new Set(RULE_SETS[key]); }
 let nodes = [], edges = [], nid = 0, connectFrom = null;
 let canvasScale = 1; // current scale applied to #canvas-inner
 
+// ── UNDO / REDO ───────────────────────────────────────────────────────────────
+let undoStack = [], redoStack = [];
+let _undoSuppressed = false;
+
+function captureState() {
+  return {
+    nodes: nodes.map(n => ({ id: n.id, label: n.label, isCat: n.isCat, x: n.x, y: n.y })),
+    edges: edges.map(e => ({ parentId: e.parentId, childId: e.childId })),
+    nid, canvasScale
+  };
+}
+function saveUndo() {
+  if (_undoSuppressed) return;
+  undoStack.push(captureState());
+  if (undoStack.length > 100) undoStack.shift();
+  redoStack = [];
+  _updateUndoBtns();
+}
+function _updateUndoBtns() {
+  const u = document.getElementById('undo-btn'), r = document.getElementById('redo-btn');
+  if (u) u.disabled = undoStack.length === 0;
+  if (r) r.disabled = redoStack.length === 0;
+}
+function _restoreState(snap) {
+  _undoSuppressed = true;
+  nodes = []; edges = []; connectFrom = null;
+  document.getElementById('node-layer').innerHTML = '';
+  document.getElementById('scissor-layer').innerHTML = '';
+  nid = snap.nid;
+  snap.nodes.forEach(n => {
+    const el = document.createElement('div');
+    el.className = 'cnode' + (n.isCat ? ' cat' : '');
+    el.id = 'n' + n.id;
+    el.style.cssText = `left:${n.x}px;top:${n.y}px`;
+    el.innerHTML = `<div class="node-label">${n.label}</div>
+      <div class="node-btns">
+        <button class="node-btn con-btn" title="Set as parent then click child" onclick="startConnect(${n.id},event)">⇣</button>
+        <button class="node-btn del-btn" title="Delete" onclick="deleteNode(${n.id})">✕</button>
+      </div>`;
+    makeDraggable(el, n.id);
+    el.addEventListener('click', ev => {
+      if (connectFrom !== null && connectFrom !== n.id) { addEdge(connectFrom, n.id); stopConnect(); }
+      ev.stopPropagation();
+    });
+    document.getElementById('node-layer').appendChild(el);
+    nodes.push({ id: n.id, label: n.label, isCat: n.isCat, x: n.x, y: n.y, el });
+  });
+  edges = snap.edges.map(e => ({ parentId: e.parentId, childId: e.childId }));
+  canvasScale = snap.canvasScale;
+  const inner = document.getElementById('canvas-inner');
+  inner.style.transformOrigin = '0 0';
+  inner.style.transform = `scale(${canvasScale})`;
+  syncZoomSlider(); redrawEdges(); updateTileCounts(); closeResult();
+  _undoSuppressed = false;
+}
+function undo() {
+  if (!undoStack.length) return;
+  redoStack.push(captureState());
+  _restoreState(undoStack.pop());
+  _updateUndoBtns();
+}
+function redo() {
+  if (!redoStack.length) return;
+  undoStack.push(captureState());
+  _restoreState(redoStack.pop());
+  _updateUndoBtns();
+}
+
 // ── INIT ─────────────────────────────────────────────────────────────────────
 function init() {
   nodes = []; edges = []; nid = 0; connectFrom = null; canvasScale = 1;
+  undoStack = []; redoStack = []; _updateUndoBtns();
   document.getElementById('node-layer').innerHTML = '';
   document.getElementById('scissor-layer').innerHTML = '';
   const inner = document.getElementById('canvas-inner');
@@ -258,6 +330,7 @@ function onCanvasDrop(e) {
   const NODE_HALF_W = 45, NODE_HALF_H = 22;
   const x = (e.clientX - r.left  + cw.scrollLeft) / canvasScale - NODE_HALF_W;
   const y = (e.clientY - r.top   + cw.scrollTop)  / canvasScale - NODE_HALF_H;
+  saveUndo();
   createNode(dragData.label, dragData.isCat, x, y);
   dragData = null;
 }
@@ -298,12 +371,12 @@ function getDescendantIds(rootId) {
 }
 
 function makeDraggable(el, id) {
-  let sx, sy, active = false;
+  let sx, sy, active = false, didMove = false;
   let dragGroup = [];
 
   el.addEventListener('mousedown', e => {
     if (e.target.classList.contains('node-btn')) return;
-    active = true;
+    active = true; didMove = false;
     sx = e.clientX; sy = e.clientY;
     const ids = getDescendantIds(id);
     dragGroup = ids.map(did => {
@@ -314,6 +387,7 @@ function makeDraggable(el, id) {
   });
   document.addEventListener('mousemove', e => {
     if (!active) return;
+    if (!didMove) { saveUndo(); didMove = true; }
     const dx = (e.clientX - sx) / canvasScale;
     const dy = (e.clientY - sy) / canvasScale;
     dragGroup.forEach(({ node, ox, oy }) => {
@@ -324,7 +398,7 @@ function makeDraggable(el, id) {
     });
     redrawEdges();
   });
-  document.addEventListener('mouseup', () => { active = false; dragGroup = []; });
+  document.addEventListener('mouseup', () => { active = false; didMove = false; dragGroup = []; });
 }
 
 // ── CONNECT ───────────────────────────────────────────────────────────────────
@@ -337,12 +411,17 @@ function startConnect(id, e) {
   showHint(`Click the CHILD node — Esc to cancel`);
 }
 function stopConnect() { connectFrom = null; nodes.forEach(n => n.el.classList.remove('connecting-source')); hideHint(); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') stopConnect(); });
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') stopConnect();
+  if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'z') { e.preventDefault(); undo(); }
+  if ((e.ctrlKey || e.metaKey) && (e.key.toLowerCase() === 'y' || (e.shiftKey && e.key.toLowerCase() === 'z'))) { e.preventDefault(); redo(); }
+});
 
 function addEdge(parentId, childId) {
   if (edges.find(e => e.parentId === parentId && e.childId === childId)) return;
-  edges = edges.filter(e => e.childId !== childId);
   if (isAncestor(childId, parentId)) { alert('This connection would create a cycle!'); return; }
+  saveUndo();
+  edges = edges.filter(e => e.childId !== childId);
   edges.push({ parentId, childId }); redrawEdges(); closeResult();
 }
 function isAncestor(possibleAnc, nodeId) {
@@ -351,6 +430,7 @@ function isAncestor(possibleAnc, nodeId) {
   return false;
 }
 function deleteNode(id) {
+  saveUndo();
   edges = edges.filter(e => e.parentId !== id && e.childId !== id);
   nodes.find(n => n.id === id)?.el.remove();
   nodes = nodes.filter(n => n.id !== id);
@@ -359,6 +439,7 @@ function deleteNode(id) {
 }
 
 function cutEdge(parentId, childId) {
+  saveUndo();
   edges = edges.filter(e => !(e.parentId === parentId && e.childId === childId));
   redrawEdges(); closeResult();
 }
@@ -454,6 +535,7 @@ function ancestorSet(nodeId) { return new Set(getAncestorLabels(nodeId)); }
 // ── AUTO ALIGN ───────────────────────────────────────────────────────────────
 function autoAlign() {
   if (nodes.length === 0) return;
+  saveUndo();
 
   const H_GAP = 8, PAD = 12;
 
@@ -762,6 +844,7 @@ async function importFullChart() {
 function loadData(data) {
   if (!data.nodes || !Array.isArray(data.nodes)) { alert('Invalid file format.'); return; }
   nodes = []; edges = []; connectFrom = null; canvasScale = 1;
+  undoStack = []; redoStack = []; _updateUndoBtns();
   const _inner = document.getElementById('canvas-inner');
   _inner.style.transform = 'scale(1)';
   _inner.style.transformOrigin = '0 0';
